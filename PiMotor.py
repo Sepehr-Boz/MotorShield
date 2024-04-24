@@ -27,7 +27,6 @@ class Motor:
                  "MOTOR1":{"config":{1:{"e":11,"f":15,"r":13},2:{"e":11,"f":13,"r":15}},"arrow":4}}
     
     def __init__(self, motor, config):
-        self.testMode = False
         self.arrow = Arrow(self.motorpins[motor]["arrow"])
         self.pins = self.motorpins[motor]["config"][config]
         GPIO.setup(self.pins['e'],GPIO.OUT)
@@ -39,30 +38,16 @@ class Motor:
         GPIO.output(self.pins['f'],GPIO.LOW)
         GPIO.output(self.pins['r'],GPIO.LOW)
 
-    def test(self, state):
-        ''' Puts the motor into test mode
-        When in test mode the Arrow associated with the motor receives power on "forward"
-        rather than the motor. Useful when testing your code. 
-        
-        Arguments:
-        state = boolean
-        '''
-        self.testMode = state
-
     def forward(self, speed):
         ''' Starts the motor turning in its configured "forward" direction.
 
         Arguments:
         speed = Duty Cycle Percentage from 0 to 100.
         0 - stop and 100 - maximum speed
-        '''    
-        print("Forward")
-        if self.testMode:
-            self.arrow.on()
-        else:
-            self.PWM.ChangeDutyCycle(speed)
-            GPIO.output(self.pins['f'],GPIO.HIGH)
-            GPIO.output(self.pins['r'],GPIO.LOW)
+        '''
+        self.PWM.ChangeDutyCycle(speed)
+        GPIO.output(self.pins['f'],GPIO.HIGH)
+        GPIO.output(self.pins['r'],GPIO.LOW)
 
     def reverse(self,speed):
         ''' Starts the motor turning in its configured "reverse" direction.
@@ -70,19 +55,14 @@ class Motor:
         Arguments:
         speed = Duty Cycle Percentage from 0 to 100.
         0 - stop and 100 - maximum speed
-     '''
-        print("Reverse")
-        if self.testMode:
-            self.arrow.off()
-        else:
-            self.PWM.ChangeDutyCycle(speed)
-            GPIO.output(self.pins['f'],GPIO.LOW)
-            GPIO.output(self.pins['r'],GPIO.HIGH)
+        '''
+        self.PWM.ChangeDutyCycle(speed)
+        GPIO.output(self.pins['f'],GPIO.LOW)
+        GPIO.output(self.pins['r'],GPIO.HIGH)
 
     def stop(self):
         ''' Stops power to the motor,
      '''
-        print("Stop")
         self.arrow.off()
         self.PWM.ChangeDutyCycle(0)
         GPIO.output(self.pins['f'],GPIO.LOW)
@@ -91,6 +71,7 @@ class Motor:
     def speed(self):
         ''' Control Speed of Motor,
      '''
+        pass
 
 class LinkedMotors:
     ''' Links 2 or more motors together as a set.
@@ -103,10 +84,7 @@ class LinkedMotors:
         *motors = a list of Motor objects
      '''
     def __init__(self, *motors):
-        self.motor = []
-        for i in motors:
-            print(i.pins)
-            self.motor.append(i)
+        self.motor = motors
 
     def forward(self,speed):
         ''' Starts the motor turning in its configured "forward" direction.
@@ -210,7 +188,6 @@ class Stepper:
     def stop(self):
         ''' Stops power to the motor,
      '''
-        print("Stop Stepper Motor")
         GPIO.output(self.config['c1'],GPIO.LOW)
         GPIO.output(self.config['c2'],GPIO.LOW)
         GPIO.output(self.config['c3'],GPIO.LOW)
@@ -228,16 +205,23 @@ class Sensor:
             will return a Triggered response of True. 
     '''
     Triggered = False
+
+    def __init__(self, sensortype, boundary):
+        self.config = self.sensorpins[sensortype]
+        self.boundary = boundary
+        self.lastRead = 0
+        if "trigger" in self.config:
+            GPIO.setup(self.config["trigger"],GPIO.OUT)
+        GPIO.setup(self.config["echo"],GPIO.IN)
+
+        sensorpins = {"IR1":{"echo":7, "check":self.iRCheck}, "IR2":{"echo":12, "check":self.iRCheck},
+                      "ULTRASONIC":{"trigger":29, "echo": 31, "check":self.sonicCheck}}
+
     def iRCheck(self):
         input_state = GPIO.input(self.config["echo"])
-        if input_state == True:
-            print("Sensor 2: Object Detected")
-            self.Triggered = True
-        else:
-            self.Triggered = False
+        self.Triggered = input_state
 
     def sonicCheck(self):
-        print("SonicCheck has been triggered")
         time.sleep(0.333)
         GPIO.output(self.config["trigger"], True)
         time.sleep(0.00001)
@@ -251,15 +235,9 @@ class Sensor:
         measure = (elapsed * 34300)/2
         self.lastRead = measure
         if self.boundary > measure:
-            print("Boundary breached")
-            print(self.boundary)
-            print(measure)
             self.Triggered = True
         else:
             self.Triggered = False
-        
-    sensorpins = {"IR1":{"echo":7, "check":iRCheck}, "IR2":{"echo":12, "check":iRCheck},
-                  "ULTRASONIC":{"trigger":29, "echo": 31, "check":sonicCheck}}
 
     def trigger(self):
         ''' Executes the relevant routine that activates and takes a reading from the specified sensor.
@@ -267,16 +245,6 @@ class Sensor:
         If the specified "boundary" has been breached the Sensor's Triggered attribute gets set to True.
     ''' 
         self.config["check"](self)
-        print("Trigger Called")
-
-    def __init__(self, sensortype, boundary):
-        self.config = self.sensorpins[sensortype]
-        self.boundary = boundary
-        self.lastRead = 0
-        if "trigger" in self.config:
-            print("trigger")
-            GPIO.setup(self.config["trigger"],GPIO.OUT)
-        GPIO.setup(self.config["echo"],GPIO.IN) 
 
 class Arrow():
     ''' Defines an object for controlling one of the LED arrows on the Motorshield.
